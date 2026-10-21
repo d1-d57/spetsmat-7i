@@ -1693,6 +1693,8 @@
     else tiho("Журнал не открылся. Обнови страницу или закрой журнал и открой его снова", "obnovit",
               x && (x.name || "") + (x && x.message ? ": " + x.message : ""));
   }
+  var PO_SSYLKE = "";
+  try { PO_SSYLKE = decodeURIComponent((location.hash || "").slice(1)); } catch (x) {}
   function prinyat(k, d) {
     SMOTRYU = k.kto === "roditel";
     rol = SMOTRYU ? "rebyonok" : k.kto;
@@ -1726,6 +1728,12 @@
     risuj();
     if (otkr) { detal.scrollTop = y; window.scrollTo(0, wy); }
     dorisoval();
+    var po = PO_SSYLKE && kdRabota(PO_SSYLKE);
+    if (po) {
+      PO_SSYLKE = "";
+      if (po.vid === "кружок") rezhim = "kr";
+      otkryt(po.id);
+    }
   }
   var kept = vzyat("kto-ya"), keptD = kept && vzyat(kept.d.kto === "prepod" ? "prepod/meropriyatiya" : "moi-meropriyatiya");
   if (kept && keptD) prinyat(kept.d, keptD.d);
