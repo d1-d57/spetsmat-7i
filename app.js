@@ -45,7 +45,7 @@
     return '<div class="oblako">' + e(KOT_FRAZA) + "</div>" + KOT;
   }
   kotFon.innerHTML = KOT;
-  var FILTRY = [["vse", "Всё", "Всё"], ["Л", "Л", "Листки"], ["КР", "КР", "Контрольные"], ["ДЗ", "ДЗ", "Домашние"]];
+  var FILTRY = [["vse", "Всё", "Всё"], ["Л", "Л", "Листки"], ["КР", "КР", "Контрольные"], ["ДЗ", "ДЗ", "Домашняя работа"]];
 
   var rol = null, RAB = [], KRUZHOK = [], rezhim = "sm", filtr = "vse", otkr = null, RABOTA = {}, varPok = {};
   var VEDUSHCHIJ = false;   // the leader -- he settles the disputes (Р399); the server says so in kto-ya and refuses the others
@@ -168,7 +168,6 @@
   }
 
   function pereklyuchatel() {
-    if (rol !== "prepod") return "";
     return '<div class="sw"><button class="' + (rezhim === "sm" ? "akt" : "") + '" data-s="sm">Спецмат</button><button class="' +
       (rezhim === "kr" ? "akt" : "") + '" data-s="kr">Кружок</button></div>';
   }
@@ -184,7 +183,7 @@
       '<div class="bok-pod">' + FILTRY.slice(1).map(function (f) {
         return p('data-s="sm" data-f="' + f[0] + '"', rezhim === "sm" && filtr === f[0], f[2]);
       }).join("") + "</div>" +
-      (rol === "prepod" ? p('data-s="kr"', rezhim === "kr", "Кружок") : "");     // the кондуит is an instrument, not a place (Р397)
+      p('data-s="kr"', rezhim === "kr", "Кружок");     // the кондуит is an instrument, not a place (Р397)
   }
 
   function zhurnal() {

@@ -10,4 +10,9 @@
     if (put === "kto-ya") return Promise.resolve(new Response(JSON.stringify(KTO), { status: 200 }));
     return net("api/" + put + ".json", kak && kak.signal ? { signal: kak.signal } : undefined);
   };
+  // the cat is sized to the free space under the menu, measured on «resize»: ask for it again once the menu,
+  // the fonts and the list are there, so the cat never covers the menu's last item
+  function izmerit() { try { window.dispatchEvent(new Event("resize")); } catch (x) {} }
+  window.addEventListener("load", function () { [0, 300, 1000, 2500].forEach(function (t) { setTimeout(izmerit, t); }); });
+  try { document.fonts.ready.then(izmerit); } catch (x) {}
 })();
