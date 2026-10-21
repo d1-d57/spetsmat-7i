@@ -109,7 +109,7 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
   
   .kot-fon { display: block; position: fixed; left: 10px; bottom: 0; z-index: 3; pointer-events: none;
     width: calc(clamp(250px, 27vw, 420px) - 16px); }
-  .kot-fon .kot { max-height: calc(100vh - var(--menu-niz, 320px) - 84px); width: auto; max-width: 100%; margin: 0 auto; pointer-events: auto; }
+  .kot-fon .kot { max-height: calc(100vh - var(--menu-niz, 400px) - 120px); width: auto; max-width: 100%; margin: 0 auto; pointer-events: auto; }
   .spisok .kot-konec { display: none; }
   .kot-fon { text-align: center; }
   .kot-fon .oblako { font-size: clamp(19px, 1.5vw, 24px); margin-bottom: 4px; }

@@ -1494,6 +1494,8 @@
     if (last) document.documentElement.style.setProperty("--menu-niz", Math.ceil(last.getBoundingClientRect().bottom) + "px");
   }
   window.addEventListener("resize", mestoKota);
+  window.addEventListener("load", mestoKota);
+  try { if (window.ResizeObserver) new ResizeObserver(mestoKota).observe(bok); if (document.fonts) document.fonts.ready.then(mestoKota); } catch (x) {}
   function risuj() {
     kotFon.innerHTML = kotSPrivetom();
     bok.innerHTML = menyu();
