@@ -7,9 +7,27 @@
 <link rel="stylesheet" href="stil.css">
 <link rel="stylesheet" href="reshenie.css">
 <link rel="stylesheet" href="katex/katex.min.css">
+<style>
+.storozh { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 16px; text-align: center; font: 19px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  background: #121a26; color: #a9b3c2; visibility: hidden; animation: storozh 0s linear 8s forwards; }
+@keyframes storozh { to { visibility: visible; } }
+.storozh p { margin: 0 0 6px; color: #eef2f8; }
+.storozh a { display: inline-block; margin-top: 14px; padding: 10px 22px; border-radius: 12px; font-size: 17px; font-weight: 600;
+  background: #1c2635; color: #6cb2f0; text-decoration: none; }
+.storozh a.glav { background: #eef2f8; color: #1c2635; }
+.storozh span { display: block; margin-top: 6px; font-size: 14px; color: #8a96a8; }
+</style>
 </head>
 <body>
 <div class="kot-fon" aria-hidden="true"></div>
+<div class="storozh" id="storozh">
+  <p>Журнал не загрузился.</p>
+  <a class="glav" href="https://t.me/conduit_57i_bot">Журнал оценок в боте</a><span>нажми «Журнал оценок» под полем ввода</span>
+  <a href="">Перезагрузить</a><span>может продлить паузу</span>
+  <a href="https://math-kluychiki.ru/7i/" target="_blank" rel="noopener">Открыть в браузере</a>
+  <span>Код для сайта — в боте</span>
+</div>
 <div class="app" id="app">
   <header class="shapka" id="shapka"></header>
   <nav class="bok" id="bok"></nav>

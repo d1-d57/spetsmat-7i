@@ -1,6 +1,9 @@
 (function () {
   "use strict";
   var tg = window.Telegram && window.Telegram.WebApp;
+  var SKRIPT = (document.currentScript && document.currentScript.src) || "";
+  var storozh = document.getElementById("storozh");
+  if (storozh) storozh.parentNode.removeChild(storozh);
   var app = document.getElementById("app");
   var bok = document.getElementById("bok");
   var spisok = document.getElementById("spisok");
@@ -10,7 +13,21 @@
     try { tg.setHeaderColor("#121a26"); tg.setBackgroundColor("#121a26"); tg.setBottomBarColor("#121a26"); } catch (x) {}
     if (!/^(ios|android)$/.test(tg.platform || "")) document.documentElement.classList.add("tg-shapka-otdelno");
   }
-  var initData = (tg && tg.initData) || "";
+  var bezPodpisi = false;
+  try { bezPodpisi = sessionStorage.getItem("7i:bez-podpisi") === "1"; } catch (x) {}
+  var initData = bezPodpisi ? "" : (tg && tg.initData) || "";
+  var KUKA = !initData;
+  var V_TG = !!(tg && tg.platform && tg.platform !== "unknown");
+  if (KUKA) document.documentElement.classList.add("kuka");
+  function podpisat(h) { h = h || {}; if (initData) h.Authorization = "tma " + initData; return h; }
+  var GOST = false;
+  function gostAdres(put, kak) {
+    if (((kak && kak.method) || "GET").toUpperCase() !== "GET") return null;
+    if (put === "kto-ya") return "/7i/api/kto-ya";
+    if (put === "moi-meropriyatiya") return "/7i/gost/api/moi-meropriyatiya.json";
+    var m = /^meropriyatie\/([^\/?#]+)$/.exec(put);
+    return m ? "/7i/gost/api/meropriyatie/" + m[1] + ".json" : null;
+  }
   var MOB = !!tg && /^(ios|android)$/.test(tg.platform || "");
   if (tg && typeof tg.requestFullscreen === "function" && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0") &&
       (MOB || /^(tdesktop|macos|web|weba|webk|unigram)$/.test(tg.platform || ""))) {
@@ -51,17 +68,37 @@
   var VEDUSHCHIJ = false;   // the leader -- he settles the disputes (Р399); the server says so in kto-ya and refuses the others
   var SMOTRYU = false;
   var ZOVUT = { zovut: "", prozvishche: null }, pravkaImeni = false, oshibkaImeni = "";
-  var SREDNIJ = null;
+  var SREDNIJ = null, CHETV = [], ITOGI = [], ZHO = false;      // ZHO: the API sends the quarter grades -- the «Журнал» tab exists (the site has none)
   function srednij(gde) {
     if (rol !== "rebyonok" || !SREDNIJ) return "";
     return '<span class="srednij ' + gde + '" title="средний балл"><span class="sr-oc">' + e(SREDNIJ.okrugl) +
       '<span class="sr-tochno">' + e(SREDNIJ.tochno.toFixed(2).replace(".", ",")) + "</span></span></span>";
   }
 
-  var KTO_TG = String((tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || 0);
+  var KTO_B = "7i:kto-brauzer";
+  function ktoBrauzer() { try { return localStorage.getItem(KTO_B) || ""; } catch (x) { return ""; } }
+  var KTO_TG = KUKA ? "b" + ktoBrauzer()
+    : String((tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) || 0);
   function klyuch(put) { return "7i:" + KTO_TG + ":" + put; }
+  function metka(k) {
+    var s = k.kto + "|" + k.imya, h = 5381;
+    for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+  function zabyt() {
+    try {
+      var nachalo = "7i:" + KTO_TG + ":";
+      Object.keys(localStorage).forEach(function (k) {
+        if (k.indexOf(nachalo) === 0 && k.indexOf(":konduit-") < 0) localStorage.removeItem(k);
+      });
+      localStorage.removeItem(KTO_B);
+    } catch (x) {}
+  }
   function vzyat(put) { try { var s = localStorage.getItem(klyuch(put)); return s ? JSON.parse(s) : null; } catch (x) { return null; } }
+  var vyhozhu = false;                        // «Выход» is on its way: nothing more is kept
   function polozhit(put, d) {
+    if (vyhozhu) return;
+    if (GOST) return;                          // a guest keeps nothing: the page's worker keeps the public files
     var s = JSON.stringify({ t: Date.now(), d: d });
     try { localStorage.setItem(klyuch(put), s); } catch (x) {
       try {
@@ -70,23 +107,62 @@
       } catch (y) {}
     }
   }
+  var PAUZA_SETI = 130000, pauzaDo = 0;
+  function vPauze() { return Date.now() < pauzaDo; }
+  var ZAPAS = location.protocol === "https:" && !location.port ? "https://" + location.hostname + ":8443" : "";
+  var ZAPAS_MS = 600000, zapasDo = 0;
+  try { zapasDo = +localStorage.getItem("7i:zapas") || 0; } catch (x) {}
+  function cherezZapas() { return !!ZAPAS && Date.now() < zapasDo; }
+  function zapasVkl(vkl) {
+    zapasDo = vkl ? Date.now() + ZAPAS_MS : 0;
+    try { localStorage.setItem("7i:zapas", String(zapasDo)); } catch (x) {}
+  }
+  function vApi(put, kak, zhdat) {
+    function raz(baza) {
+      var ctl = window.AbortController ? new AbortController() : null;
+      var t = setTimeout(function () { if (ctl) ctl.abort(); }, zhdat || 10000);
+      var o = {}; for (var k in kak) if (k !== "signal") o[k] = kak[k];
+      o.credentials = "include";                          // the cookie of the code entry goes to :8443 too (same site)
+      if (ctl) o.signal = ctl.signal;
+      return fetch(baza + "/7i/api/" + put, o).then(function (r) { clearTimeout(t); return r; },
+                                                     function (x) { clearTimeout(t); throw x; });
+    }
+    var naZapase = cherezZapas();
+    return raz(naZapase ? ZAPAS : "").catch(function (x) {
+      if (!ZAPAS) throw x;
+      if (naZapase) { zapasVkl(false); throw x; }         // the spare door broke too: the next try starts at 443
+      return raz(ZAPAS).then(function (r) { zapasVkl(true); return r; });
+    });
+  }
   function zapros(put, kak) {
     kak = kak || {};
-    var ctl = window.AbortController ? new AbortController() : null;
-    var t = setTimeout(function () { if (ctl) ctl.abort(); }, kak.zhdat || 10000);
-    kak.headers = kak.headers || {}; kak.headers.Authorization = "tma " + initData;
-    if (ctl) kak.signal = ctl.signal;
-    return fetch("/7i/api/" + put, kak).then(function (r) {
-      clearTimeout(t);
-      if (!r.ok) return r.text().then(function () { var x = new Error("http " + r.status); x.status = r.status; throw x; });
+    if (vPauze()) { var p = new Error("pauza"); p.pauza = true; return Promise.reject(p); }
+    var adres = GOST ? gostAdres(put, kak) : "/7i/api/" + put;
+    if (!adres) { var g = new Error("http 403"); g.status = 403; g.slovo = "gost"; return Promise.reject(g); }
+    kak.headers = podpisat(kak.headers);
+    var zhdat = kak.zhdat; delete kak.zhdat;
+    var otvet;
+    if (GOST && adres.indexOf("/7i/api/") !== 0) {          // the guest's static files: the page's own door only
+      var ctl = window.AbortController ? new AbortController() : null;
+      var t = setTimeout(function () { if (ctl) ctl.abort(); }, zhdat || 10000);
+      kak.credentials = "same-origin";
+      if (ctl) kak.signal = ctl.signal;
+      otvet = fetch(adres, kak).then(function (r) { clearTimeout(t); return r; }, function (x) { clearTimeout(t); throw x; });
+    } else otvet = vApi(adres.slice("/7i/api/".length), kak, zhdat);
+    return otvet.then(function (r) {
+      if (!r.ok) return r.text().then(function (b) {
+        var x = new Error("http " + r.status); x.status = r.status;
+        try { x.slovo = JSON.parse(b).oshibka || ""; } catch (y) {}
+        throw x;
+      });
       return r.status === 204 ? null : r.json();
-    }, function (x) { clearTimeout(t); throw x; });
+    }, function (x) { pauzaDo = Date.now() + PAUZA_SETI; throw x; });
   }
-  function api(put, popytok, neKlast) {
+  function api(put, popytok, neKlast, zhdat) {
     var n = 0, eshcheRaz = popytok == null ? 2 : popytok;
     function raz() {
-      return zapros(put).catch(function (x) {
-        var eshche = !x.status || x.status >= 500 || x.status === 408 || x.status === 429;
+      return zapros(put, zhdat ? { zhdat: zhdat } : undefined).catch(function (x) {
+        var eshche = x.status >= 500 || x.status === 408 || x.status === 429;
         if (eshche && n++ < eshcheRaz) return new Promise(function (ok) { setTimeout(ok, n === 1 ? 1500 : 4000); }).then(raz);
         throw x;
       });
@@ -97,18 +173,36 @@
   var DOKLADY = "7i:doklady";
   function dolozhit(shag, chto) {
     var r = { shag: shag, ms: Math.round(window.performance && performance.now ? performance.now() : 0),
-      set: navigator.onLine ? 1 : 0, pl: (tg && tg.platform) || "", v: (tg && tg.version) || "",
-      sw: navigator.serviceWorker && navigator.serviceWorker.controller ? 1 : 0 };
+      set: navigator.onLine ? 1 : 0, pl: KUKA && !V_TG ? "brauzer" : (tg && tg.platform) || "", v: (tg && tg.version) || "",
+      sw: navigator.serviceWorker && navigator.serviceWorker.controller ? 1 : 0, zap: cherezZapas() ? 1 : 0 };
     for (var k in chto || {}) r[k] = chto[k];
     var q = []; try { q = JSON.parse(localStorage.getItem(DOKLADY) || "[]"); } catch (x) {}
     q.push(r);
     try { localStorage.setItem(DOKLADY, JSON.stringify(q.slice(-15))); } catch (x) {}
     otpravit();
   }
+  var ZAMER = "7i:zamer-dverej", ZAMER_MS = 3600000;
+  function zamerDveri(baza) {
+    var t0 = Date.now(), ctl = window.AbortController ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctl) ctl.abort(); }, 8000);
+    return fetch(baza + "/7i/api/zdorove", { cache: "no-store", credentials: "omit", signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { clearTimeout(t); return r.ok ? String(Date.now() - t0) : "h" + r.status; },
+            function () { clearTimeout(t); return "x"; });
+  }
+  function zamerDverej() {
+    if (!ZAPAS) return;
+    var bylo = 0; try { bylo = +localStorage.getItem(ZAMER) || 0; } catch (x) {}
+    if (Date.now() - bylo < ZAMER_MS) return;
+    try { localStorage.setItem(ZAMER, String(Date.now())); } catch (x) {}
+    Promise.all([vPauze() ? Promise.resolve("p") : zamerDveri(""), zamerDveri(ZAPAS)]).then(function (d) {
+      dolozhit("dveri", { d443: d[0], d8443: d[1] });
+    });
+  }
+  setTimeout(zamerDverej, 3000);
   var otpravlyayu = false;
   function otpravit() {
     var q; try { q = JSON.parse(localStorage.getItem(DOKLADY) || "[]"); } catch (x) { return; }
-    if (!q.length || !initData || otpravlyayu) return;
+    if (!q.length || otpravlyayu || (KUKA && !rol)) return;      // the cookie: only once someone has entered
     if (SMOTRYU) { try { localStorage.removeItem(DOKLADY); } catch (x) {} return; }   // a parent's openings are not reported
     otpravlyayu = true;
     zapros("doklad", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doklady: q }) })
@@ -125,11 +219,18 @@
     localStorage.setItem(NACHATO, String(Date.now()));
   } catch (x) {}
   function dorisoval() { try { localStorage.removeItem(NACHATO); } catch (x) {} }
-  try { if (navigator.serviceWorker) navigator.serviceWorker.register("sw.js").catch(function () {}); } catch (x) {}
+  try {
+    if (navigator.serviceWorker) {
+      var vSw = /[?&]v=([0-9a-f]+)/.exec(SKRIPT);
+      navigator.serviceWorker.register("sw.js" + (vSw ? "?v=" + vSw[1] : "")).then(function () {
+        return navigator.serviceWorker.ready;
+      }).then(function (r) { if (r.active) r.active.postMessage("dokachat"); }).catch(function () {});
+    }
+  } catch (x) {}
 
   function obrabotat(m) {
     var k = /^(\D+)(\d+)$/.exec(m.nomer) || [null, m.nomer, "0"];
-    m.vidR = k[1]; m.nomR = +k[2];
+    m.bukvy = k[1]; m.vidR = k[1] === "ЛК" || k[1] === "ЛП" ? "Л" : k[1]; m.nomR = +k[2];
     m.zan = m.vydano || m.data;        // the journal shows a work on the day it was handed out
     return m;
   }
@@ -137,10 +238,9 @@
     if (m.vidR === "КР" || (m.vidR === "ДЗ" && /^Домашнее задание$/.test(m.nazvanie))) return "";
     return String(m.nazvanie).replace(/^Домашнее задание · /, "").replace(/ (\d+)$/, "\u00a0$1");
   }
-  function kod(m) { return m.vidR === "ДЗ" ? "ДЗ " + m.nomR : m.vidR + m.nomR; }
+  function kod(m) { return m.vidR === "ДЗ" ? "ДЗ " + m.nomR : m.bukvy + m.nomR; }
   function pravo(m, glavnyj) {
     if (rol !== "rebyonok") return "";
-    if (glavnyj && m.vidR === "ДЗ") return "";
     if (m.sdacha === "ne-sdal") return '<span class="ns">не сдано</span>';
     if (m.ocenka) return '<span class="oc">' + e(m.ocenka) + "</span>";
     var est = (m.punkty || m.zadachi || []).some(function (p) { return p.otmetka === "+"; });
@@ -157,7 +257,7 @@
     var n = naz(m);
     return '<button class="r' + (otkr === m.id ? " otkr" : "") + '" data-id="' + e(m.id) + '"><span class="kd">' + e(kod(m)) + '</span><span class="t">' +
       (data ? '<span class="dl">' + dtk(m.zan) + "</span>" : "") +
-      '<span class="naz">' + (m.vidR === "Л" ? e(n) : "") + "</span></span>" + pravo(m, true) + knopkaSetki(m, "r-setka") + "</button>";
+      '<span class="naz">' + (m.vidR === "Л" ? e(n) : "") + "</span></span>" + skanMetka(m) + pravo(m, true) + knopkaSetki(m, "r-setka") + "</button>";
   }
 
   function privet(cls) {
@@ -169,7 +269,8 @@
 
   function pereklyuchatel() {
     return '<div class="sw"><button class="' + (rezhim === "sm" ? "akt" : "") + '" data-s="sm">Спецмат</button><button class="' +
-      (rezhim === "kr" ? "akt" : "") + '" data-s="kr">Кружок</button></div>';
+      (rezhim === "kr" ? "akt" : "") + '" data-s="kr">Кружок</button>' +
+      (ZHO ? '<button class="' + (rezhim === "zh" ? "akt" : "") + '" data-s="zh">Журнал</button>' : "") + "</div>";
   }
   function chipy() {
     return '<div class="filtr">' + FILTRY.map(function (f) {
@@ -183,13 +284,24 @@
       '<div class="bok-pod">' + FILTRY.slice(1).map(function (f) {
         return p('data-s="sm" data-f="' + f[0] + '"', rezhim === "sm" && filtr === f[0], f[2]);
       }).join("") + "</div>" +
-      p('data-s="kr"', rezhim === "kr", "Кружок");     // the кондуит is an instrument, not a place (Р397)
+      p('data-s="kr"', rezhim === "kr", "Кружок") +     // the кондуит is an instrument, not a place (Р397)
+      (ZHO ? p('data-s="zh"', rezhim === "zh", "Журнал") : "");
   }
 
+  function temaKursa(m) { return m.blok ? (m.blok_n ? m.blok_n + " " : "") + m.blok : m.tema || ""; }
   function zhurnal() {
     if (filtr !== "vse") {
-      var r = RAB.filter(function (x) { return x.vidR === filtr; }).sort(function (a, b) { return b.nomR - a.nomR; });
-      return '<div class="rab rab-filtr">' + r.map(function (m) { return stroka(m, true); }).join("") + "</div>";
+      var r = RAB.filter(function (x) { return x.vidR === filtr; }).sort(function (a, b) { return a.zan < b.zan ? 1 : a.zan > b.zan ? -1 : b.nomR - a.nomR; });
+      var hf = "", tf = null, otkryto = false;
+      r.forEach(function (m) {
+        var t = temaKursa(m);
+        if (t !== tf || !otkryto) {
+          if (otkryto) hf += "</div>";
+          hf += (t && t !== tf ? '<h2 class="tema">' + e(t) + "</h2>" : "") + '<div class="rab rab-filtr">'; otkryto = true; tf = t;
+        }
+        hf += stroka(m, true);
+      });
+      return hf + (otkryto ? "</div>" : "");
     }
     var h = "", dni = [];
     RAB.forEach(function (x) { if (dni.indexOf(x.zan) < 0) dni.push(x.zan); });
@@ -200,9 +312,89 @@
         return (PORYADOK[a.vidR] || 0) - (PORYADOK[b.vidR] || 0) || a.nomR - b.nomR;
       });
       var urok = RAB.filter(function (x) { return x.data === d; })[0] || r[0];
-      if (urok.tema && urok.tema !== tek) { tek = urok.tema; h += '<h2 class="tema">' + e(tek) + "</h2>"; }
+      var tu = temaKursa(urok);
+      if (tu && tu !== tek) { tek = tu; h += '<h2 class="tema">' + e(tek) + "</h2>"; }
       h += '<section class="zan"><div class="zan-d">' + dt(d) + '</div><div class="rab">' + r.map(function (m) { return stroka(m, false); }).join("") + "</div></section>";
     });
+    return h;
+  }
+  var MESH = {}, meshZhdu = {};       // by quarter
+  function zhurnalMesh(c) {
+    var M = MESH[c];
+    if (!M) {
+      if (!meshZhdu[c]) {
+        meshZhdu[c] = true;
+        api("prepod/itogi-mesh/" + c, 1, true).then(function (d) { MESH[c] = d; meshZhdu[c] = false; if (rezhim === "zh") risujSpisok(); })
+          .catch(function () { meshZhdu[c] = false; });
+      }
+      return '<p class="tiho">Загружаю…</p>';
+    }
+    var h = '<h2 class="tema">Изменилось после выставления в МЭШ</h2>';
+    h += M.izmeneniya.length ? '<div class="rab">' + M.izmeneniya.map(function (x) {
+      return '<div class="r"><span class="t"><span class="naz">' + e(x.uchenik) + '</span><span class="ns">' +
+        e((x.bylo || ["—"]).join(" · ")) + " → " + e((x.stalo || ["—"]).join(" · ")) + "</span></span></div>";
+    }).join("") + "</div>" : '<div class="rab"><div class="r"><span class="t"><span class="naz">Изменений нет</span></span></div></div>';
+    h += '<h2 class="tema">' + e(c) + ' четверть · для МЭШ</h2><div class="rab mesh">' + M.stroki.map(function (s) {
+      return '<div class="r"><span class="t"><span class="naz">' + e(s[0]) + '</span><span class="ns">КР ' + e(s[1] || "—") +
+        " · сам. " + e(s[2] || "—") + " · ДЗ " + e(s[3] || "—") + (s[7] ? " · правка " + e(s[7]) : "") + '</span></span><span class="oc">' + e(s[4]) + "</span></div>";
+    }).join("") + "</div>";
+    return h;
+  }
+  var CHETV_OTKR = null, RIM = ["I", "II", "III", "IV"];
+  function rim(c) { return RIM[c - 1] || String(c); }
+  function vZhurnale(x) { return (x.vidR === "Л" || x.vidR === "КР" || x.vidR === "ДЗ") && x.ocenivaetsya && !!x.ocenka; }
+  function chetvertiZhurnala() {
+    var c = [];
+    RAB.forEach(function (x) { if ((rol === "prepod" || vZhurnale(x)) && c.indexOf(x.chetvert || 1) < 0) c.push(x.chetvert || 1); });
+    ITOGI.forEach(function (x) { if (c.indexOf(x.chetvert) < 0) c.push(x.chetvert); });
+    return c.sort(function (a, b) { return a - b; });
+  }
+  function vkladkiChetvertej(est, c) {
+    return est.length < 2 ? "" : '<div class="zh-chetv">' + est.map(function (n) {
+      return '<button class="' + (n === c ? "akt" : "") + '" data-chetv="' + n + '">' + rim(n) + "</button>";
+    }).join("") + "</div>";
+  }
+  function zhOc(kd, oc, id, title) {
+    return (id ? '<button class="zh-o" data-id="' + e(id) + '">' : '<span class="zh-o"' + (title ? ' title="' + e(title) + '"' : "") + ">") + '<span class="zh-k">' + e(kd) +
+      '</span><span class="zh-v">' + e(oc) + "</span>" + (id ? "</button>" : "</span>");
+  }
+  function zhurnalOcenok() {
+    var est = chetvertiZhurnala();
+    if (!est.length) return rol === "prepod" ? zhurnalMesh(1) : '<p class="tiho">Оценок пока нет.</p>';
+    var c = est.indexOf(CHETV_OTKR) >= 0 ? CHETV_OTKR : est[est.length - 1];
+    var h = vkladkiChetvertej(est, c);
+    if (rol === "prepod") return h + zhurnalMesh(c);
+    var r = RAB.map(function (x, i) { return [x, i]; }).filter(function (p) { return vZhurnale(p[0]) && (p[0].chetvert || 1) === c; })
+      .sort(function (a, b) { return a[0].data < b[0].data ? -1 : a[0].data > b[0].data ? 1 : a[1] - b[1]; }).map(function (p) { return p[0]; });
+    var temy = [];
+    r.forEach(function (m) {
+      var t = m.blok || "";
+      if (!temy.length || temy[temy.length - 1].t !== t) temy.push({ t: t, n: m.blok_n, r: [] });
+      temy[temy.length - 1].r.push(m);
+    });
+    if (temy.length) {
+      h += '<div class="rab zh-temy">' + temy.map(function (t) {
+        return '<div class="zh-tema"><div class="zh-naz">' + (t.n ? '<span class="zh-nom">' + e(t.n) + "</span>" : "") + e(t.t) + "</div>" +
+          '<div class="zh-ocenki">' + t.r.map(function (m) { return zhOc(kod(m), m.ocenka, m.id); }).join("") + "</div></div>";
+      }).join("") + "</div>";
+    }
+    var svoi = {};
+    ITOGI.forEach(function (x) { if (x.chetvert === c) svoi[x.kategoriya] = x.ocenka; });
+    var tri = [["kr", "КР", "Контрольные — по контрольным работам четверти"], ["urok", "Л", "Самостоятельная работа — листки и семинарский листок"],
+      ["dz", "ДЗ", "Домашние задания — по домашним заданиям четверти"]].filter(function (k) { return svoi[k[0]]; });
+    if (tri.length || svoi.chetvertnaya) {
+      h += '<div class="rab zh-itog"><span class="zh-rim">' + rim(c) + '</span><div class="zh-ocenki">' +
+        tri.map(function (k) { return zhOc(k[1], svoi[k[0]], null, k[2]); }).join("") + "</div>" +
+        (svoi.chetvertnaya ? '<span class="zh-ch" title="Четвертная — по трём итоговым оценкам, как в МЭШ">' + e(svoi.chetvertnaya) + "</span>" : "") + "</div>";
+    } else if (SREDNIJ) {
+      h += '<div class="zh-sr">Средняя оценка <b>' + e(SREDNIJ.tochno.toFixed(2).replace(".", ",")) + "</b></div>";
+    }
+    if (CHETV.length) {                       // the file's quarter grades: a summary of every quarter, last
+      h += '<h2 class="tema">Четвертные</h2><div class="rab">' + CHETV.map(function (x) {
+        return '<div class="r"><span class="kd">' + e(x.chetvert) + ' чт.</span><span class="t"><span class="naz">' + (x.vid === "dz" ? "домашние задания" : "четверть") +
+          '</span></span><span class="oc">' + e(x.ocenka) + "</span></div>";
+      }).join("") + "</div>";
+    }
     return h;
   }
   function kruzhok() {
@@ -232,7 +424,7 @@
       var k = /^(\d+)(.*)$/.exec(z.nomer) || [null, z.nomer, ""];
       var p = po[k[1]];
       if (!p) { p = po[k[1]] = { n: k[1], ur: z.uroven, items: [] }; probs.push(p); }
-      p.items.push({ l: k[2], o: z.otmetka, bylo: z.bylo, tekst: u.tekst_zadachi, otv: u.otvet, moj: z.moj_otvet, resh: u.reshenie, ob: z.obyazatelnaya, nom: z.nomer, spor: z.spor,
+      p.items.push({ l: k[2], o: z.otmetka, zn: z.znachok, bylo: z.bylo, tekst: u.tekst_zadachi, otv: u.otvet, moj: z.moj_otvet, resh: u.reshenie, ob: z.obyazatelnaya, nom: z.nomer, spor: z.spor,
         vv: z.vvod, mv: z.moj_vvod, nap: z.na_proverke });
     });
     probs.forEach(function (p) {
@@ -240,20 +432,29 @@
       p.ob = p.items.some(function (it) { return it.ob; });   // obligatory (Р329): the sheet's ○ and △ tracks, all of КР and ДЗ
       var celaya = p.items.length === 1 && !p.items[0].l;
       var i0 = p.items[0];
-      if (celaya) { p.stem = i0.tekst; p.parts = [{ l: "", o: i0.o, bylo: i0.bylo, otv: i0.otv, moj: i0.moj, nom: i0.nom, spor: i0.spor, vv: i0.vv, mv: i0.mv, nap: i0.nap }]; return; }
+      if (celaya) { p.stem = i0.tekst; p.parts = [{ l: "", o: i0.o, zn: i0.zn, bylo: i0.bylo, otv: i0.otv, moj: i0.moj, nom: i0.nom, spor: i0.spor, vv: i0.vv, mv: i0.mv, nap: i0.nap }]; return; }
       var r = razbit(p.items[0].tekst), pom = {};
       p.items.forEach(function (it) { pom[it.l] = it; });
       p.stem = r.stem;
       p.parts = r.parts.map(function (q) {
         var it = pom[q.l];
-        return { l: q.l, t: q.t, est: !!it, o: it ? it.o : null, bylo: it ? it.bylo : null, otv: it ? it.otv : null, moj: it ? it.moj : null, nom: it ? it.nom : null, spor: it ? it.spor : null,
+        return { l: q.l, t: q.t, est: !!it, o: it ? it.o : null, zn: it ? it.zn : null, bylo: it ? it.bylo : null, otv: it ? it.otv : null, moj: it ? it.moj : null, nom: it ? it.nom : null, spor: it ? it.spor : null,
           vv: it ? it.vv : null, mv: it ? it.mv : null, nap: it ? it.nap : false };
       });
     });
     return probs;
   }
+  var DOLI = { "++": "1 + 1 сверх", "+.": "0,8", "±": "0,6", "∓": "0,3", "−.": "0,1" };
+  var NEJTR = { "±": 1, "∓": 1, "−.": 1 };     // neither right nor wrong: the neutral plaque (the strip too)
+  function znak(z) {
+    if (z === "+") return '<span class="ot da">+</span>';
+    if (z === "−") return '<span class="ot ne">−</span>';
+    if (z === "++") return '<span class="ot da" title="верно с обоснованием: 1 + 1 сверх">++</span>';
+    return '<span class="ot ' + (NEJTR[z] ? "pr" : "da") + '" title="' + e(DOLI[z]) + ' из 1">' + e(z) + '<span class="dolya">' + e(DOLI[z]) + "</span></span>";
+  }
   function ot(q) {
     if (rol !== "rebyonok" || q.est === false) return "";
+    if (q.zn) return znak(q.zn);
     if (q.o === "+" && q.bylo) return '<span class="ot da" title="пересдано"><span class="str">−→</span>+</span>';
     return q.o === "+" ? '<span class="ot da">+</span>' : q.o === "-" ? '<span class="ot ne">−</span>' : '<span class="ot pu" aria-label="не сдано"></span>';
   }
@@ -346,6 +547,62 @@
     return '<details class="vv-deti" data-vvd="' + e(k) + '"' + (OTKR_VVD[k] ? " open" : "") + "><summary>Ответы детей · " +
       ryady.length + " из " + d.vsego + "</summary>" + (ryady.length ? "<ul>" + ryady.join("") + "</ul>" : "") + "</details>";
   }
+  var SKAN_OSH = {}, SKAN_OKNO = null, skanOkno = null;
+  function estSkan(m) { return !GOST && rol === "rebyonok" && !!m && m.skanov > 0; }
+  function skanMetka(m) { return estSkan(m) ? '<span class="skan-m" title="есть скан работы">скан</span>' : ""; }
+  function skanBlok(m) {
+    if (!estSkan(m)) return "";
+    var kn = "";
+    for (var i = 1; i <= m.skanov; i++) kn += '<button class="skan-kn" data-skan="' + e(m.id) + "|" + i + '">стр. ' + i + "</button>";
+    return '<div class="skan"><span class="skan-z">Скан твоей работы</span>' + kn + "</div>";
+  }
+  function skanRisovat() {
+    if (!skanOkno) {
+      skanOkno = document.createElement("div");
+      skanOkno.id = "skan-okno";
+      skanOkno.setAttribute("role", "dialog");
+      skanOkno.setAttribute("aria-label", "Скан работы");
+      document.body.appendChild(skanOkno);
+      skanOkno.addEventListener("click", function (ev) {
+        var sk = ev.target.closest("[data-skan]");
+        if (sk) skanNazhat(sk);
+        else if (ev.target.closest("[data-skan-zakryt]")) skanZakryt();
+        else if (ev.target.closest("[data-skan-zoom]")) skanZoom();
+      });
+    }
+    var o = SKAN_OKNO, m = o && RABOTA[o.id];
+    skanOkno.hidden = !o;
+    if (!o) { skanOkno.innerHTML = ""; return; }
+    var k = "skan|" + o.id + "|" + o.n, kn = "", n = (m && m.skanov) || 1;
+    for (var i = 1; i <= n; i++) kn += '<button class="skan-kn' + (i === o.n ? " akt" : "") + '" data-skan="' + e(o.id) + "|" + i + '">стр. ' + i + "</button>";
+    var tel = FOTO[k] ? '<img class="skan-img' + (o.zoom ? " zoom" : "") + '" alt="скан, стр. ' + o.n + '" src="' + e(FOTO[k]) + '">'
+      : SKAN_OSH[k] ? '<p class="tiho">Не открылось. Закрой и нажми ещё раз</p>' : '<p class="tiho">Открываю…</p>';
+    skanOkno.innerHTML = '<div class="skan-verh"><span class="skan-kn-ryad">' + kn + "</span>" +
+      (FOTO[k] ? '<button class="skan-kn" data-skan-zoom="1">' + (o.zoom ? "уменьшить" : "увеличить") + "</button>" : "") +
+      '<button class="skan-zakryt" data-skan-zakryt="1" aria-label="Закрыть">✕</button></div><div class="skan-pole">' + tel + "</div>";
+  }
+  function skanNazhat(el) { var p = el.getAttribute("data-skan").split("|"); skanOtkryt(p[0], +p[1]); }
+  function skanOtkryt(id, n) {
+    if (vPauze() || GOST) return;
+    tuk();
+    var k = "skan|" + id + "|" + n;
+    SKAN_OKNO = { id: id, n: n, zoom: false };
+    delete SKAN_OSH[k];
+    skanRisovat();
+    if (FOTO[k]) return;
+    pokazatFoto(k, "skan/" + encodeURIComponent(id) + "/" + n, skanRisovat, function () { SKAN_OSH[k] = 1; skanRisovat(); });
+  }
+  function skanZakryt() { SKAN_OKNO = null; skanRisovat(); }
+  function skanZoom() { if (SKAN_OKNO && FOTO["skan|" + SKAN_OKNO.id + "|" + SKAN_OKNO.n]) { SKAN_OKNO.zoom = !SKAN_OKNO.zoom; skanRisovat(); } }
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && SKAN_OKNO) { ev.stopPropagation(); skanZakryt(); } }, true);
+  (function () {
+    var posle = 0;
+    document.addEventListener("click", function (ev) {
+      if (!SKAN_OKNO || !ev.target.closest || !ev.target.closest(".skan-img")) return;
+      var t = Date.now();
+      if (t - posle < 350) { posle = 0; skanZoom(); } else posle = t;
+    });
+  })();
   function perenarisovat(id) { if (otkr === id) { var y = detal.scrollTop, wy = window.scrollY; risujDetal(); detal.scrollTop = y; window.scrollTo(0, wy); } }
   function obnovitRabotu(id) {
     api("meropriyatie/" + encodeURIComponent(id), 0).then(function (n) { RABOTA[id] = obrabotat(n); svezho[id] = Date.now(); perenarisovat(id); }, function () {});
@@ -402,15 +659,16 @@
     };
     fr.readAsDataURL(file);
   }
-  function pokazatFoto(klyuch, put) {
-    fetch("/7i/api/" + put, { headers: { Authorization: "tma " + initData } }).then(function (r) {
+  function pokazatFoto(klyuch, put, gotovo, osh) {
+    if (vPauze() || GOST) return;
+    vApi(put, { headers: podpisat() }, 20000).then(function (r) {
       if (!r.ok) throw new Error("http " + r.status);
       return r.blob();
     }).then(function (b) {
       var fr = new FileReader();
-      fr.onload = function () { FOTO[klyuch] = fr.result; perenarisovat(otkr); };
+      fr.onload = function () { FOTO[klyuch] = fr.result; if (gotovo) gotovo(); else perenarisovat(otkr); };
       fr.readAsDataURL(b);
-    }).catch(function () {});
+    }).catch(function () { if (osh) osh(); });
   }
   function zagruzitOtvetyDetej(id) {
     zapros("prepod/vvod/" + encodeURIComponent(id)).then(function (d) { DETI_VV[id] = d; perenarisovat(id); }, function () {});
@@ -431,7 +689,7 @@
       var cells = p.parts.length === 1 && !p.parts[0].l ? [p.parts[0]]
         : p.parts.filter(function (q) { return q.est !== false; });
       return cells.map(function (q) {
-        var c = rol === "rebyonok" ? (kl[q.o] || (estVvod(q.mv) ? "est" : "")) : "";
+        var c = rol === "rebyonok" ? (NEJTR[q.zn] ? "pr" : kl[q.o] || (estVvod(q.mv) ? "est" : "")) : "";
         return '<button class="pl ' + c + '" data-k="z-' + e(m.id) + "-" + e(p.n) + '"' + (q.nom ? ' data-p="' + e(q.nom) + '"' : "") + '><span class="pl-c">' + e(p.n + q.l) + "</span></button>";
       }).join("");
     }).join("") + "</div>";
@@ -474,6 +732,10 @@
   }
   function teorKlyuch(t) { return t ? JSON.stringify([t.tekst, t.bloki || []]) : ""; }
   function teorBlok(t, m) { return Bloki.teoriya(t, m && m.vidR === "ДЗ"); }
+  function chislo(x) { return String(Math.round(x * 100) / 100).replace(".", ","); }
+  function ball(m) {
+    return rol === "rebyonok" && m.ball ? '<div class="ball">Балл: <b>' + e(chislo(m.ball.ball)) + "</b> из " + e(chislo(m.ball.iz)) + "</div>" : "";
+  }
   function rabota(m) {
     var vse = m.varianty && m.varianty.length ? m.varianty : [""];
     var vv = rol === "rebyonok" ? [m.moj_variant || vse[0]] : vse;
@@ -493,7 +755,7 @@
     var zagDop = dop.length ? '<div class="dop-zag">' + (oba.length ? "Дополнительные" : "По желанию") + "</div>" : "";
     var probs = nomera.map(function (n) { return po[pok][n]; }).filter(Boolean), n = naz(m);
     var h = '<div class="l-shapka"><div><h1 class="l-zag">' + (n ? '<span class="l-kod">' + e(kod(m)) + "</span> " + e(n) : e(kod(m))) + "</h1>" +
-      '<div class="l-meta">' + meta + "</div></div>" + pravo(m) + knopkaSetki(m, "l-setka") + "</div>" + polosa(m, probs);
+      '<div class="l-meta">' + meta + "</div></div>" + pravo(m) + knopkaSetki(m, "l-setka") + "</div>" + polosa(m, probs) + skanBlok(m);
     function ryady(f) { return oba.map(f).join("") + zagDop + dop.map(f).join(""); }
     if (vv.length > 1) {
       h += '<div class="vsw" role="tablist">' + vv.map(function (v) {
@@ -515,7 +777,7 @@
         return '<div class="odin" id="z-' + e(m.id) + "-" + e(k) + '">' + zad(m, vv[0], po[vv[0]][k]) + "</div>";
       }) + "</div>";
     }
-    return h;
+    return h + ball(m);
   }
 
   var KD = { para: null, rid: null, s: null, u: null, uSam: false, sel: null, reb: null, oshibka: "", csv: "", zakryto: null,
@@ -703,13 +965,12 @@
     return telo.klyuch;
   }
   function kdPost(put, telo, tip) {
-    var ctl = window.AbortController ? new AbortController() : null;
-    var t = setTimeout(function () { if (ctl) ctl.abort(); }, 10000);
-    return fetch("/7i/api/" + put, { method: "POST", signal: ctl ? ctl.signal : undefined, body: tip ? telo : JSON.stringify(telo),
-      headers: { Authorization: "tma " + initData, "Content-Type": tip || "application/json" } }).then(function (r) {
-      clearTimeout(t);
+    if (GOST) return Promise.resolve({ status: 403, b: {} });            // a guest writes nothing (gostAdres)
+    if (vPauze()) return Promise.resolve({ status: 0, b: {} });
+    return vApi(put, { method: "POST", body: tip ? telo : JSON.stringify(telo),
+      headers: podpisat({ "Content-Type": tip || "application/json" }) }, 10000).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, b: b || {} }; });
-    }, function () { clearTimeout(t); return { status: 0, b: {} }; });
+    }, function () { pauzaDo = Date.now() + PAUZA_SETI; return { status: 0, b: {} }; });
   }
   var kdPodtverzhdeno = 0;            // marks confirmed so far: a session GET begun before the latest is stale
   function kdUbrat(z, kod) {
@@ -719,7 +980,7 @@
     kdSohranitOch();
   }
   function kdOtpravit() {
-    if (kdIdyot || !KD_OCH.length || !initData) return;
+    if (kdIdyot || !KD_OCH.length || (KUKA && !rol)) return;
     kdIdyot = true; clearTimeout(kdTajmer);
     var z = KD_OCH[0];
     kdPost("prepod/konduit/" + encodeURIComponent(z.mid) + "/sobytie", z.telo).then(function (o) {
@@ -742,9 +1003,9 @@
       var dalshe = function () {
         kdIdyot = false;
         kdSeti = o.status !== 0;
-        KD.oshibka = o.status === 401 ? "открой журнал заново из бота"
+        KD.oshibka = o.status === 401 ? (KUKA ? "Нужно войти заново — отметки сохранены и уедут после входа" : "открой журнал заново из бота")
           : o.status ? "сервер не принимает (HTTP " + o.status + ")" : "";
-        kdTajmer = setTimeout(kdOtpravit, KD_PAUZY[Math.min(kdPauza++, KD_PAUZY.length - 1)]);
+        kdTajmer = setTimeout(kdOtpravit, o.status ? KD_PAUZY[Math.min(kdPauza++, KD_PAUZY.length - 1)] : Math.max(PAUZA_SETI, pauzaDo - Date.now()));
         kdPerenarisovat();
       };
       if (n500 < KD_500) return dalshe();
@@ -1447,10 +1708,10 @@
     var d = new Date(svyaz.t), seg = new Date().toDateString() === d.toDateString();
     var kogda = (seg ? "" : d.getDate() + " " + MES[d.getMonth()] + ", ") + d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2);
     return '<p class="svyaz">' + (svyaz.zanovo ? "Журнал на " + kogda + ". Открой его заново из бота, чтобы обновить"
-      : "Нет связи. Журнал на " + kogda) + "</p>";
+      : "Связь притормозила — попробую сама через 2 минуты. Журнал на " + kogda) + "</p>";
   }
   function risujSpisok() {
-    spisok.innerHTML = strokaSvyazi() + privet("privet") + (rezhim === "sm" ? srednij("v-uglu") + chipy() + zhurnal() : kruzhok()) +
+    spisok.innerHTML = strokaSvyazi() + privet("privet") + (rezhim === "sm" ? srednij("v-uglu") + chipy() + zhurnal() : rezhim === "zh" ? zhurnalOcenok() : kruzhok()) +
       '<div class="kot-konec">' + kotSPrivetom() + "</div>" + '<button class="k-zhurnal" data-k-zhurnal="1">‹ Журнал</button>';
   }
   function nastrojkiHtml() {
@@ -1552,7 +1813,7 @@
   }
   var svezho = {};
   function zaranee() {
-    if (rol !== "rebyonok" || (navigator.connection && navigator.connection.saveData)) return;
+    if (GOST || rol !== "rebyonok" || (navigator.connection && navigator.connection.saveData)) return;
     var ochered = RAB.concat(KRUZHOK).map(function (m) { return m.id; }).filter(function (id) {
       var est = vzyat("meropriyatie/" + encodeURIComponent(id));
       return !est || Date.now() - est.t > 6 * 3600 * 1000;
@@ -1586,11 +1847,13 @@
     if (ev.target.closest("[data-kd-csv]")) return;
     if (ev.target.closest("[data-kd-sbros]")) { kdSbrosit(); return; }
     var f = ev.target.closest("[data-f]"); if (f) { tuk(); filtr = f.getAttribute("data-f"); risuj(); return; }
+    var cv = ev.target.closest("[data-chetv]"); if (cv) { tuk(); CHETV_OTKR = +cv.getAttribute("data-chetv"); risuj(); return; }
     if (ev.target.closest("[data-k-zhurnal]")) { STEK = []; pokazatEkran(false); return; }
     if (ev.target.closest("[data-obnovit]")) { window.location.reload(); return; }
     if (ev.target.closest("[data-imya]")) { otkrytNastrojki(); return; }
     var sp = ev.target.closest("[data-spor]"); if (sp) { nazhatSpor(sp.getAttribute("data-spor")); return; }
     var vk = ev.target.closest("[data-vvod]"); if (vk) { sohranit(vk.getAttribute("data-vvod"), [["vybor", vk.getAttribute("data-zn")]]); return; }
+    var sk = ev.target.closest("[data-skan]"); if (sk) { skanNazhat(sk); return; }
     var fk = ev.target.closest("[data-foto]"); if (fk) { pokazatFoto(fk.getAttribute("data-foto"), fk.getAttribute("data-put")); return; }
     var b = ev.target.closest("[data-id]"); if (b) { otkryt(b.getAttribute("data-id")); return; }
     var v = ev.target.closest("[data-v]");
@@ -1643,8 +1906,9 @@
     }
     var f = ev.target.closest("[data-imya-forma]"); if (!f) return;
     ev.preventDefault();
+    if (GOST) return;
     var imya = f.querySelector("input").value;
-    fetch("/7i/api/imya", { method: "POST", headers: { Authorization: "tma " + initData, "Content-Type": "application/json" },
+    vApi("imya", { method: "POST", headers: podpisat({ "Content-Type": "application/json" }),
       body: JSON.stringify({ imya: imya }) }).then(function (r) {
       if (r.status === 400) { oshibkaImeni = "до 20 знаков"; perenarisovatDetal(); return null; }
       if (!r.ok) throw new Error("http " + r.status);
@@ -1685,17 +1949,115 @@
   });
   document.addEventListener("animationend", function (ev) { if (ev.target.classList) ev.target.classList.remove("prygaet"); });
 
+  var ugol = null, okno = null, KTO_VIDNO = "7i:kto-vidno";
+  function risujUgol(k) {
+    if (!ugol) {
+      ugol = document.createElement("div"); ugol.className = "ugol"; ugol.id = "ugol";
+      document.body.appendChild(ugol);
+      okno = document.createElement("div"); okno.className = "okno"; okno.id = "okno-vhod"; okno.hidden = true;
+      okno.innerHTML = '<div class="okno-fon" data-zakryt="1"></div>' +
+        '<form class="okno-telo" id="forma-vhoda" method="post" action="/7i/api/vhod">' +
+        '<input type="text" name="kto" value="7И" autocomplete="username" readonly hidden aria-hidden="true" tabindex="-1">' +
+        '<input type="password" id="parol" name="parol" required autocomplete="current-password" autocapitalize="off"' +
+        ' spellcheck="false" placeholder="код" aria-label="Код">' +
+        '<input type="hidden" name="kuda" id="vhod-kuda" value="/7i/">' +
+        '<button type="submit" class="zn" data-zn="vpered" aria-label="Войти" title="Войти"></button>' +
+        '<button type="button" class="zn" data-zn="zakryt" data-zakryt="1" aria-label="Закрыть" title="Закрыть"></button>' +
+        '<p class="okno-oshibka" id="vhod-oshibka" hidden></p></form>';
+      document.body.appendChild(okno);
+      okno.querySelector("form").addEventListener("submit", function () {
+        document.getElementById("vhod-kuda").value = location.pathname.indexOf("/7i/") === 0 ? location.pathname : "/7i/";
+      });
+    }
+    try { sessionStorage.setItem(KTO_VIDNO, k ? metka(k) : ""); } catch (x) {}
+    ugol.innerHTML = !k ? '<button type="button" class="zn" data-zn="vhod" data-otkryt-vhod="1" aria-label="Войти" title="Войти"></button>'
+      : '<div class="ugol-blok"><span class="ugol-imya" title="' + e(k.imya) + '">' + e(k.imya) + "</span>" +
+        '<form method="post" action="/7i/api/vyhod" data-vyhod="1"><button type="submit" class="zn" data-zn="vyhod" aria-label="Выйти" title="Выйти"></button></form></div>';
+  }
+  function otkrytVhod(stroka) {
+    if (!okno) risujUgol(null);
+    var o = document.getElementById("vhod-oshibka"), pole = document.getElementById("parol");
+    okno.hidden = false; o.textContent = stroka || ""; o.hidden = !stroka; pole.value = ""; pole.focus();
+  }
+  function zakrytVhod() { if (okno) okno.hidden = true; }
+  document.addEventListener("submit", function (ev) {
+    if (ev.target.closest && ev.target.closest("[data-vyhod]")) { vyhozhu = true; zabyt(); try { sessionStorage.removeItem("7i:bez-podpisi"); } catch (x) {} }
+  }, true);
+  document.addEventListener("click", function (ev) {
+    if (ev.target.closest("[data-otkryt-vhod]")) { ev.preventDefault(); otkrytVhod(); return; }
+    if (ev.target.closest("[data-zakryt]")) { zakrytVhod(); return; }
+    var ot = ev.target.closest("[data-ot]"), k = ot && ot.getAttribute("data-ot");
+    if (k === "bot") { try { tg.close(); } catch (x) {} }
+    else if (k === "zanovo") location.reload();
+    else if (k === "sajt") { try { tg.openLink(SAJT); } catch (x) { location.href = SAJT; } }
+  });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && okno && !okno.hidden) { ev.stopPropagation(); zakrytVhod(); } }, true);
+  window.addEventListener("pageshow", function (ev) {
+    if (!ev.persisted || !KUKA) return;
+    var bylo = null; try { bylo = sessionStorage.getItem(KTO_VIDNO); } catch (x) {}
+    if (bylo !== null && bylo !== ktoBrauzer()) location.reload();
+  });
+  var SAJT = "https://math-kluychiki.ru/7i/";
+  function vyjti() {
+    rol = null; RAB = []; KRUZHOK = []; RABOTA = {}; STEK = []; otkr = null; SREDNIJ = null; svyaz = null;
+    app.className = "app"; document.getElementById("ka").hidden = true; shapka.innerHTML = "";
+  }
+  var KTO_GOST = { kto: "roditel", imya: "", pol: null, vedushchij: false, prozvishche: null, zovut: "" };
+  function gost() {
+    GOST = true;
+    risujUgol(null);
+    api("moi-meropriyatiya", null, true, 8000).then(function (d) { svyaz = null; prinyat(KTO_GOST, d); }, function (x) {
+      GOST = false;
+      if (x && x.status) priglashenie(); else otkaz("Связь притормозила — попробую сама через 2 минуты", false);
+    });
+  }
+  function priglashenie() {
+    risujUgol(null);
+    dorisoval();
+    app.classList.remove("s-rabotoj"); bok.innerHTML = ""; detal.innerHTML = "";
+    spisok.innerHTML = KOT + '<div class="tiho otkaz"><p class="otkaz-str">Журнал 7И открывается по личному коду.</p>' +
+      '<button class="knopka" data-otkryt-vhod="1">Войти</button><span class="esli">Код для сайта — в боте</span></div>';
+  }
+  function otkaz(stroka, sVhodom) {
+    risujUgol(null);
+    dorisoval();
+    app.classList.remove("s-rabotoj"); bok.innerHTML = ""; detal.innerHTML = "";
+    spisok.innerHTML = KOT + '<div class="tiho otkaz"><p class="otkaz-str">' + e(stroka) + "</p>" +
+      (sVhodom ? '<button class="knopka" data-otkryt-vhod="1">Войти кодом</button>' : "") +
+      (V_TG ? '<button class="knopka vtor" data-ot="bot">Журнал оценок в боте</button><span class="esli">нажми «Журнал оценок» под полем ввода</span>'
+            : '<a class="knopka vtor" href="' + BOT + '">Журнал оценок в боте</a>') +
+      '<button class="knopka vtor" data-ot="zanovo">Перезагрузить</button><span class="esli">может продлить паузу</span>' +
+      (V_TG ? '<button class="knopka vtor" data-ot="sajt">Открыть в браузере</button>' : "") +
+      '<span class="esli">Код для сайта — в боте</span></div>';
+    if (sVhodom && (!okno || okno.hidden)) otkrytVhod();
+  }
+  var svezhestBylo = false;
+  function svezhest() {
+    var moj = /[?&]v=([0-9a-f]+)/.exec(SKRIPT);
+    if (svezhestBylo || !moj) return;
+    svezhestBylo = true;
+    try { if (sessionStorage.getItem("7i:perezagruzheno")) return; } catch (x) { return; }
+    fetch("/7i/", { cache: "no-store", credentials: "same-origin" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (h) {
+      var tam = /src="app\.js\?v=([0-9a-f]+)"/.exec(h);
+      if (tam && tam[1] !== moj[1]) { sessionStorage.setItem("7i:perezagruzheno", "1"); location.reload(); }
+    }).catch(function () {});
+  }
   function oshibka(x) {
-    if (x && x.status === 401) tiho("Открой журнал заново из бота", "bot");
+    if (x && x.status === 401 && KUKA) { if (V_TG) otkaz("Telegram не сказал, кто ты.", true); else gost(); }
+    else if (x && x.status === 401 && x.slovo === "podpis") {
+      try { sessionStorage.setItem("7i:bez-podpisi", "1"); } catch (y) {}
+      otkaz("Telegram не подтвердил, кто ты.", true);
+    }
+    else if (x && x.status === 401) tiho("Открой журнал заново из бота", "bot");
     else if (x && x.status === 403) tiho("Сначала нажми /start в боте", "bot");
-    else if (!x || !x.status) tiho("Нет связи. Журнал откроется сам, когда появится интернет", "obnovit",
-              x && (x.name || "") + (x && x.message ? ": " + x.message : ""));
+    else if (!x || !x.status) otkaz("Связь притормозила — попробую сама через 2 минуты", false);
     else tiho("Журнал не открылся. Обнови страницу или закрой журнал и открой его снова", "obnovit",
               x && (x.name || "") + (x && x.message ? ": " + x.message : ""));
   }
   var PO_SSYLKE = "";
   try { PO_SSYLKE = decodeURIComponent((location.hash || "").slice(1)); } catch (x) {}
   function prinyat(k, d) {
+    if (KUKA) risujUgol(GOST ? null : k);
     SMOTRYU = k.kto === "roditel";
     rol = SMOTRYU ? "rebyonok" : k.kto;
     if (SMOTRYU && NASTR) { try { tg.SettingsButton.hide(); } catch (x) {} }
@@ -1704,6 +2066,11 @@
     ZOVUT = { zovut: k.zovut || "", prozvishche: k.prozvishche || null };
     app.classList.add(rol === "prepod" ? "prepod" : "rebyonok");
     SREDNIJ = d.srednij || null;
+    CHETV = d.chetvertnye || [];
+    ITOGI = d.itogi || [];
+    ZHO = (Array.isArray(d.chetvertnye) && k.kto !== "prepod") || k.kto === "prepod";   // a teacher: the МЭШ table
+    MESH = {};
+    if (!ZHO && rezhim === "zh") rezhim = "sm";
     RAB = []; KRUZHOK = [];
     d.meropriyatiya.forEach(function (m) {
       obrabotat(m);
@@ -1742,25 +2109,41 @@
     if (gruzhu) return;
     gruzhu = true; clearTimeout(povtor);
     var bylKept = !!rol, kk;
-    api("kto-ya").then(function (k) {
+    api("kto-ya", null, KUKA, 8000).then(function (k) {
       kk = k;
+      if (GOST) { location.reload(); return new Promise(function () {}); }   // an entry made elsewhere: start as that person
+      if (KUKA) {                              // the cookie: the kept data are this account's own
+        var m = metka(k);
+        if ("b" + m !== KTO_TG) { KTO_TG = "b" + m; try { localStorage.setItem(KTO_B, m); } catch (x) {} }
+        polozhit("kto-ya", k);
+      }
       return api(k.kto === "prepod" ? "prepod/meropriyatiya" : "moi-meropriyatiya");
     }).then(function (d) {
       svyaz = null; prinyat(kk, d);
       dolozhit("otkryt", { iz: bylKept ? "telefon" : "set" });
       zaranee();
+      svezhest();
     }, function (x) {
       dolozhit("oshibka", { oshibka: (x && (x.status || x.name)) || "", iz: bylKept ? "telefon" : "" });
-      if (rol) {
+      if (rol && KUKA && x && x.status === 401) {      // the entry ended: nothing of that account stays on the screen
+        zabyt(); vyjti(); oshibka(x);
+      } else if (rol) {
         svyaz = { t: keptD ? keptD.t : Date.now(), zanovo: x && x.status === 401 };
         if (!pravkaImeni) risuj();
         dorisoval();
-      } else {
-        oshibka(x);
-        if (!x || (x.status !== 401 && x.status !== 403)) povtor = setTimeout(obnovit, 20000);
-      }
+      } else oshibka(x);
+      if (!x || !x.status) povtor = setTimeout(obnovit, Math.max(PAUZA_SETI, pauzaDo - Date.now()));
+      else if (x.status !== 401 && x.status !== 403) povtor = setTimeout(obnovit, PAUZA_SETI);
     }).then(function () { gruzhu = false; });
   }
   obnovit();
+  (function () {
+    var m = /[?&]vhod=(ne-pustil|pauza)/.exec(location.search);
+    if (!m) return;
+    var u = new URL(location.href); u.searchParams.delete("vhod");
+    history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    otkrytVhod(m[1] === "pauza" ? "слишком много попыток — подожди минуту" : "код не подошёл");
+  })();
+  if (KUKA && !rol) risujUgol(null);
   window.addEventListener("online", function () { otpravit(); kdPauza = 0; kdOtpravit(); if (svyaz || !rol) obnovit(); });
 })();

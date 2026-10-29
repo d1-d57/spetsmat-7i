@@ -64,9 +64,12 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
   border: 1.5px solid var(--liniya); font-size: 22px; font-weight: 700; color: var(--podpis); font-variant-numeric: tabular-nums; line-height: 40px; }
 .sr-tochno { font-size: 12px; font-weight: 600; color: var(--tusklo); transform: translateY(5px); }
 .srednij.v-uglu { display: none; }
+
+.zh-sr { margin: 22px 4px 0; font-size: 18px; color: var(--podpis); }
+.zh-sr b { color: var(--tekst); font-size: 22px; }
 .spisok { position: relative; }
 @media (min-width: 820px) {
-  .srednij.v-uglu { display: inline-flex; position: absolute; top: 30px; right: 80px; }
+  .srednij.v-uglu { display: inline-flex; position: absolute; top: 60px; right: 16px; }
   .srednij.v-uglu .sr-oc { height: 46px; line-height: 46px; font-size: 25px; }
   .srednij.v-uglu .sr-tochno { font-size: 13px; }
   .app.s-rabotoj .srednij.v-uglu { display: none; }
@@ -114,6 +117,8 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
   .kot-fon { text-align: center; }
   .kot-fon .oblako { font-size: clamp(19px, 1.5vw, 24px); margin-bottom: 4px; }
   body:has(.app.s-rabotoj) .kot-fon { display: none; }
+  
+  body:has(.spisok > .kot, .spisok > .zagruzka) .kot-fon { display: none; }
 }
 .sw { display: inline-flex; gap: 2px; background: var(--metka); border-radius: 10px; padding: 3px; }
 .sw button { padding: 6px 16px; border-radius: 8px; font-size: 15px; color: var(--podpis); }
@@ -151,6 +156,29 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
 .oc { flex: none; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; background: var(--metka); }
 @media (hover: hover) { .r:hover { background: color-mix(in srgb, var(--tusklo) 8%, var(--sekciya)); } }
 
+.zh-chetv { display: flex; gap: 6px; margin-top: 18px; }
+.zh-chetv button { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--tusklo); padding: 4px 12px; border-radius: 10px; }
+.zh-chetv button.akt { color: var(--tekst); background: var(--sekciya); }
+.rab.zh-temy { margin-top: 18px; padding: 4px 18px; container-type: inline-size; }
+.zh-tema { padding: 14px 0; }
+.zh-tema + .zh-tema { border-top: .5px solid var(--liniya); }
+.zh-naz { font-family: var(--serif); font-size: 21px; line-height: 1.25; }
+.zh-nom { color: var(--tusklo); margin-right: 10px; font-variant-numeric: tabular-nums; }
+.zh-ocenki { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 8px; }
+.zh-o { display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 0; border-radius: 6px; }
+.zh-k { font-size: 14px; font-weight: 600; color: var(--tusklo); }
+.zh-v { font-size: 22px; font-weight: 700; color: var(--tekst); font-variant-numeric: tabular-nums; }
+@media (hover: hover) { button.zh-o:hover .zh-k { color: var(--akcent); } }
+.rab.zh-itog { margin-top: 14px; display: flex; align-items: center; gap: 22px; padding: 14px 18px; }
+.zh-itog .zh-ocenki { flex: 1; margin-top: 0; }
+.zh-rim { font-family: var(--serif); font-size: 32px; font-weight: 700; line-height: 1; min-width: 28px; }
+.zh-ch { flex: none; width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; font-weight: 700; background: var(--tekst); color: var(--sekciya); }
+@container (min-width: 560px) {
+  .zh-tema { display: grid; grid-template-columns: minmax(200px, 30%) minmax(0, 1fr); align-items: baseline; column-gap: 24px; }
+  .zh-tema .zh-ocenki { margin-top: 0; }
+}
+
 
 .l-shapka { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-top: 22px; }
 .l-zag { font-family: var(--serif); font-size: 30px; line-height: 1.15; margin: 4px 0 4px; text-wrap: balance; }
@@ -177,6 +205,12 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
 .ot.ne { background: var(--net-fon); color: var(--net); }
 .ot.pu { border: 1px solid var(--liniya); }
 .ot .str { font-size: 12px; font-weight: 400; opacity: .75; margin-right: 2px; }
+
+.ot.pr { background: var(--metka); color: var(--tekst); }
+.ot .dolya { font-size: .62em; font-weight: 400; opacity: .7; margin-left: 4px; white-space: nowrap; }
+
+.ball { margin: 22px 4px 8px; font-size: 18px; color: var(--podpis); }
+.ball b { color: var(--tekst); font-size: 22px; }
 
 
 @media (max-width: 399px) {
@@ -249,6 +283,13 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
   .l-zag { font-size: 42px; }
   .l-meta { font-size: 17px; }
   .l-shapka .oc { width: 60px; height: 60px; font-size: 32px; }
+  .rab.zh-temy { padding: 6px 24px; }
+  .rab.zh-itog { padding: 16px 24px; }
+  .zh-naz { font-size: 26px; }
+  .zh-k { font-size: 16px; }
+  .zh-v { font-size: 27px; }
+  .zh-rim { font-size: 40px; }
+  .zh-ch { width: 66px; height: 66px; font-size: 36px; }
   .zad { padding: 10px 32px; }
   .z { padding: 20px 0; }
   .tx { font-size: clamp(21px, 1.55vw, 27px); line-height: 1.55; }
@@ -383,10 +424,10 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
 
 :root { --sa-verh: var(--tg-safe-area-inset-top, 0px); --ryad: var(--tg-content-safe-area-inset-top, 0px); }
 :root:not(.poln) { --sa-verh: 0px; --ryad: 52px; }
-:root { --verh: calc(var(--sa-verh) + var(--ryad)); --niz: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)); }
+:root { --ugol-v: 0px; --verh: calc(var(--sa-verh) + var(--ugol-v) + var(--ryad)); --niz: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)); }
 .shapka { position: fixed; left: 0; right: 0; top: 0; height: var(--verh); z-index: 5; pointer-events: none;
   background: var(--stranica); }
-.sh-ryad { position: absolute; left: 0; right: 0; top: var(--sa-verh); height: var(--ryad); display: flex; align-items: center; justify-content: center;
+.sh-ryad { position: absolute; left: 0; right: 0; top: calc(var(--sa-verh) + var(--ugol-v)); height: var(--ryad); display: flex; align-items: center; justify-content: center;
   gap: 10px; padding: 0 64px; }
 .sh-ryad > * { pointer-events: auto; }
 .sh-naz { font-size: 17px; font-weight: 700; color: var(--tekst); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -427,6 +468,7 @@ button:focus-visible { outline: 2px solid var(--akcent); outline-offset: 2px; bo
   font-variant-numeric: tabular-nums; border: 1px solid var(--liniya); color: var(--tusklo); background: var(--sekciya); }
 .pl.da .pl-c { background: var(--da-fon); color: var(--da); border-color: transparent; }
 .pl.ne .pl-c { background: var(--net-fon); color: var(--net); border-color: transparent; }
+.pl.pr .pl-c { background: var(--metka); color: var(--tekst); border-color: transparent; }
 .pl.est .pl-c { border-color: color-mix(in srgb, var(--akcent) 60%, transparent); color: var(--tekst); }
 @media (min-width: 820px) { .polosa { grid-template-columns: repeat(auto-fill, 48px); column-gap: 8px; } .pl { width: 48px; } .pl-c { width: 48px; height: 40px; font-size: 15px; } }
 
@@ -724,3 +766,77 @@ span.ka-zh { color: var(--podpis); }
 @media (min-width: 820px) and (hover: hover) {
   .kd-klav { display: block; position: absolute; top: 5px; left: 8px; font-size: 11px; font-weight: 600; color: var(--tusklo); }
 }
+
+
+.zn[data-zn] { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px;
+  margin: 0; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--podpis); cursor: pointer; --zn: 18px; }
+.zn[data-zn]::before { content: ""; flex: none; width: var(--zn); height: var(--zn); background: currentColor;
+  -webkit-mask: var(--zn-img) center/contain no-repeat; mask: var(--zn-img) center/contain no-repeat; }
+.zn[data-zn]:hover { color: var(--tekst); background: var(--sekciya); }
+.zn[data-zn=vhod] { --zn-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' %3E%3Cpath d='M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4' /%3E%3Cpolyline points='10 17 15 12 10 7' /%3E%3Cline x1='15' x2='3' y1='12' y2='12' /%3E%3C/svg%3E"); }
+.zn[data-zn=vyhod] { --zn-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' %3E%3Cpath d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' /%3E%3Cpolyline points='16 17 21 12 16 7' /%3E%3Cline x1='21' x2='9' y1='12' y2='12' /%3E%3C/svg%3E"); }
+.zn[data-zn=vpered] { --zn-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' %3E%3Cpath d='m9 18 6-6-6-6' /%3E%3C/svg%3E"); }
+.zn[data-zn=zakryt] { --zn: 14px; --zn-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' %3E%3Cpath d='M18 6 6 18' /%3E%3Cpath d='m6 6 12 12' /%3E%3C/svg%3E"); }
+.ugol { position: fixed; z-index: 6; top: var(--sa-verh); right: 12px; height: var(--ryad); max-width: calc(100vw - 24px);
+  display: flex; align-items: center; justify-content: flex-end; }
+.poln .ugol { right: 64px; }                       
+.ka:not([hidden]) ~ .ugol { display: none; }       
+.ugol form { display: contents; }
+
+.ugol-blok { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; height: 44px; padding: 0 4px 0 14px;
+  border-radius: 12px; background: var(--sekciya); }
+.ugol-imya { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 17px/1.2 var(--sys); color: var(--tekst); }
+#okno-vhod { position: fixed; inset: 0; z-index: 100; }
+#okno-vhod[hidden] { display: none; }
+#okno-vhod .okno-fon { position: absolute; inset: 0; background: transparent; }
+#okno-vhod .okno-telo { position: fixed; top: calc(var(--sa-verh) + var(--ryad) + 4px); right: 12px; width: 280px; max-width: calc(100vw - 24px);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; margin: 0; padding: 12px;
+  background: var(--sekciya); border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+#okno-vhod #parol { width: 100%; min-width: 0; height: 36px; padding: 0 12px; margin: 0; font: 400 16px/22px var(--sys);
+  border: 1px solid var(--liniya); border-radius: 8px; background: var(--stranica); color: var(--tekst); }
+#okno-vhod #parol:focus { outline: none; border-color: var(--akcent); }
+#okno-vhod .okno-oshibka { grid-column: 1 / -1; margin: 0; font: 400 14px/18px var(--sys); color: var(--net); }
+#okno-vhod .okno-oshibka[hidden] { display: none; }
+
+.otkaz { display: flex; flex-direction: column; align-items: center; gap: 0; max-width: 520px; margin: 40px auto 0; padding: 0 16px;
+  font-size: 19px; line-height: 1.5; color: var(--podpis); text-align: center; }
+.otkaz-str { margin: 0 0 6px; color: var(--tekst); }
+.otkaz .knopka { display: inline-block; margin-top: 14px; padding: 10px 22px; border: 0; border-radius: 12px; font: inherit; font-size: 17px;
+  font-weight: 600; background: var(--tekst); color: var(--sekciya); text-decoration: none; cursor: pointer; }
+.otkaz .knopka.vtor { background: var(--sekciya); color: var(--akcent); }
+.otkaz .esli { display: block; margin-top: 6px; font-size: 14px; color: var(--tusklo); }
+@media (max-width: 819px) {
+  .zn[data-zn] { width: 44px; height: 44px; --zn: 20px; }
+  .zn[data-zn=zakryt] { --zn: 16px; }
+}
+
+@media (max-width: 819px) {
+  :root:not(.poln):has(.ugol-blok) { --ugol-v: 52px; }
+  :root:not(.poln):has(.ka:not([hidden])) { --ugol-v: 0px; }
+  :root:not(.poln):has(.ugol-blok) .ugol { left: 12px; height: var(--ugol-v); }
+}
+@media (min-width: 820px) {
+  .ugol { top: 0; right: 16px; height: 52px; }
+  .ugol-blok { max-width: min(46vw, 440px); }
+  .ugol-imya { font-size: 18px; }
+  #okno-vhod .okno-telo { top: 56px; right: 16px; }
+  .kuka .spisok, .kuka .detal { padding-top: 52px; }
+  .kuka .app.s-rabotoj .detal { padding-top: 52px; }
+}
+
+
+.skan { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.skan-z { font-size: 15px; color: var(--tusklo); margin-right: 4px; }
+.skan-kn { padding: 9px 16px; border-radius: 10px; background: var(--metka); color: var(--tekst); font-size: 16px; font-weight: 600; }
+.skan-kn.akt { background: var(--tekst); color: var(--sekciya); }
+.skan-m { flex: none; font-size: 13px; line-height: 1; color: var(--akcent); border: .5px solid currentColor; border-radius: 8px; padding: 4px 8px; }
+#skan-okno { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--stranica); }
+#skan-okno[hidden] { display: none; }
+.skan-verh { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(var(--verh-tg) + 10px) 14px 10px; }
+.skan-kn-ryad { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; }
+.skan-zakryt { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 44px; height: 44px; border-radius: 12px; background: var(--metka); color: var(--tekst); font-size: 20px; }
+.skan-pole { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; padding: 0 8px 12px; text-align: center; }
+.skan-pole .tiho { margin-top: 40px; }
+.skan-img { display: block; margin: 0 auto; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 6px; background: #fff; }
+.skan-img.zoom { max-width: none; max-height: none; width: 250%; }
+@media (min-width: 900px) { .skan-img.zoom { width: 160%; } }
